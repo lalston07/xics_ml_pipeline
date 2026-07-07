@@ -5,8 +5,6 @@
 # 
 # We cannot directly use those functions from 'xicsrt_voigt' because it is based on the assumption that there is only one Voigt profile, which is centered at zero. We rewrite the functions to be compatible with multiple Voigt profiles/lines.
 
-# In[1]:
-
 
 import numpy as np
 from scipy.special import wofz

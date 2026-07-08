@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# This 'multiline_voigt' code uses the foundation of 'xicsrt_voigt' and extends the functions to be used on multiple lines.
+# This 'multi_voigt' code uses the foundation of 'xicsrt_voigt' and extends the functions to be used on multiple lines.
 # 
 # We cannot directly use those functions from 'xicsrt_voigt' because it is based on the assumption that there is only one Voigt profile, which is centered at zero. We rewrite the functions to be compatible with multiple Voigt profiles/lines.
-
-# In[1]:
 
 
 import numpy as np
@@ -37,7 +35,7 @@ def voigt(x, intensity=None, location=None, sigma=None, gamma=None):
 
 
 
-def multiline_voigt(x, line_locations, line_intensities, sigmas, gammas):
+def multi_voigt(x, line_locations, line_intensities, sigmas, gammas):
     """
     Evaluates the summed spectrum from multiple Voigt profiles. 
 
@@ -73,7 +71,7 @@ def multiline_voigt(x, line_locations, line_intensities, sigmas, gammas):
 
 
 
-def multiline_voigt_cdf_tab(line_locations, line_intensities, sigmas, gammas, gridsize=None, cutoff=None):
+def multi_voigt_cdf_tab(line_locations, line_intensities, sigmas, gammas, gridsize=None, cutoff=None):
     """
     Numerical CDF table for a spectrum made from multiple Voight profiles.
     This follows the structure of 'voigt_cdf_tab()': 
@@ -143,7 +141,7 @@ def multiline_voigt_cdf_tab(line_locations, line_intensities, sigmas, gammas, gr
 
     # Evaluating the summed multiline Voigt spectrum
     pdf = np.zeros_like(cdf_x)
-    pdf = multiline_voigt(cdf_x, line_locations, line_intensities, sigmas, gammas,)
+    pdf = multi_voigt(cdf_x, line_locations, line_intensities, sigmas, gammas,)
 
     # Approximating the area in each wavelength bin.
     # Matches original function for rectangle-style CDF construction.
@@ -165,7 +163,7 @@ def multiline_voigt_cdf_tab(line_locations, line_intensities, sigmas, gammas, gr
     return bounds[1:], cdf, pdf
 
 
-def multiline_voigt_random(line_locations, line_intensities, sigmas, gammas, size, gridsize=None, cutoff=None):
+def multi_voigt_random(line_locations, line_intensities, sigmas, gammas, size, gridsize=None, cutoff=None):
     """
     Draw random wavelength samples from a multiline Voigt spectrum.
 
@@ -187,7 +185,7 @@ def multiline_voigt_random(line_locations, line_intensities, sigmas, gammas, siz
         Keep in mind that linear interpolation is faster, but quadratic may behave better/worse and slower
     """
 
-    cdf_x, cdf, spectrum = multiline_voigt_cdf_tab(
+    cdf_x, cdf, spectrum = multi_voigt_cdf_tab(
         line_locations,
         line_intensities,
         sigmas,

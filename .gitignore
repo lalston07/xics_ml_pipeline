@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Pytest
+.pytest_cache/
+
+# Mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# Training outputs
+checkpoints/
+runs/
+
+# NumPy
+*.npy
+*.npz
+
+# PyTorch
+*.pt
+*.pth
+*.ckpt
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+
+# Jupyter-generated checkpoints
+.ipynb_checkpoints/
+
+# Local Anaconda files
+anaconda_projects/
+
+# Generated training data
+nn_training_data/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor settings
+.vscode/
+
+# Python/testing caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+*.log

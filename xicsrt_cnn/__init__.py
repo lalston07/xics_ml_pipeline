@@ -29,12 +29,19 @@ from .dataset import (
     SampleRef,
     discover_samples,
     split_samples,
+    split_train_test,
     build_image_from_sample,
 )
 # The CNN model.
 from .model import XicsCNN
-# Training + prediction entry points.
-from .train import train, load_model, predict_image, predict_sample
+# Training + prediction + evaluation entry points.
+from .train import (
+    train,
+    load_model,
+    predict_image,
+    predict_sample,
+    evaluate_test,
+)
 
 # `__all__` lists the public API: the names exported by `from cnn import *`
 # and what tools treat as this package's official surface.
@@ -57,10 +64,12 @@ __all__ = [
     "SampleRef",
     "discover_samples",
     "split_samples",
+    "split_train_test",
     "build_image_from_sample",
     "XicsCNN",
     "train",
     "load_model",
     "predict_image",
     "predict_sample",
+    "evaluate_test",
 ]

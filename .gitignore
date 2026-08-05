@@ -16,6 +16,10 @@ env/
 # Logs
 *.log
 
+# Large training datasets (kept local, not committed)
+*.nc
+*.zip
+
 # Pytest
 .pytest_cache/
 

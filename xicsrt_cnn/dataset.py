@@ -57,7 +57,10 @@ class SampleRef:
 
 
 # Thin wrapper around xarray's open function (one place to change if needed).
-def _open(path: Path) -> xr.Dataset:
+# `engine` picks the backend used to read the .nc file (e.g. "h5netcdf").
+def _open(path: Path, engine: str | None = None) -> xr.Dataset:
+    if engine:
+        return xr.open_dataset(path, engine=engine)
     return xr.open_dataset(path)
 
 
@@ -83,7 +86,7 @@ def discover_samples(data_cfg: DataConfig) -> tuple[list[SampleRef], xr.Dataset]
         # One SampleRef per file (sample_index None = whole file is one sample).
         refs = [SampleRef(f, None) for f in files]
         # Open the first file to serve as the schema reference.
-        ref_ds = _open(files[0])
+        ref_ds = _open(files[0], data_cfg.engine)
         return refs, ref_ds
 
     # If it's neither a directory nor an existing file, explain how to fix it.
@@ -94,7 +97,7 @@ def discover_samples(data_cfg: DataConfig) -> tuple[list[SampleRef], xr.Dataset]
         )
 
     # CASE 2: a single .nc file.
-    ds = _open(path)
+    ds = _open(path, data_cfg.engine)
     # If it has a sample dimension, make one SampleRef per index along it.
     if schema.sample_dim in ds.dims:
         n = ds.sizes[schema.sample_dim]
@@ -140,16 +143,25 @@ def build_image_from_sample(
     # The variable-name schema.
     schema = data_cfg.schema
 
-    # Local helper: fetch a variable and slice out this sample if needed.
-    def get(name):
-        da = ds[name]
-        if sample_index is not None and schema.sample_dim in da.dims:
-            da = da.isel({schema.sample_dim: sample_index})
-        return np.asarray(da.values).ravel()
+    # Grab the single intersections variable, dims (sample, ray, axis).
+    da = ds[schema.intersect]
+    # Slice out just this sample if the data is stacked over `sample`.
+    if sample_index is not None and schema.sample_dim in da.dims:
+        da = da.isel({schema.sample_dim: sample_index})
 
-    # Ray hit x-positions and y-positions on the detector (local coords).
-    lx = get(schema.intersect_x)
-    ly = get(schema.intersect_y)
+    # Pick the x and y components along the `axis` dimension. We use the axis
+    # coordinate labels ('x'/'y') when present, and fall back to positions 0/1.
+    if schema.axis_dim in da.coords:
+        x_da = da.sel({schema.axis_dim: schema.axis_x})
+        y_da = da.sel({schema.axis_dim: schema.axis_y})
+    else:
+        x_da = da.isel({schema.axis_dim: 0})
+        y_da = da.isel({schema.axis_dim: 1})
+
+    # Flatten to plain 1-D arrays of ray hit positions (padding rays are NaN
+    # and will be dropped inside build_detector_image).
+    lx = np.asarray(x_da.values).ravel()
+    ly = np.asarray(y_da.values).ravel()
 
     # Figure out detector geometry (from xarray if available).
     img_cfg = _image_config_from_ds(ds, data_cfg.image, schema)
@@ -184,7 +196,7 @@ class XicsXarrayDataset(Dataset):
     def _get_ds(self, path: Path) -> xr.Dataset:
         key = str(path)
         if key not in self._ds_cache:
-            self._ds_cache[key] = _open(path)
+            self._ds_cache[key] = _open(path, self.data_cfg.engine)
         return self._ds_cache[key]
 
     # PyTorch calls this to learn how many samples exist.
@@ -236,3 +248,24 @@ def split_samples(
     for i, r in enumerate(refs):
         (val if i in val_idx else train).append(r)
     return train, val
+
+
+# Hold out `test_count` samples as the final test set; the rest are for
+# training. Reproducible via `seed`. With 100 samples and test_count=10 this
+# gives the 90/10 split used by the project.
+def split_train_test(
+    refs: list[SampleRef], test_count: int, seed: int
+) -> tuple[list[SampleRef], list[SampleRef]]:
+    """Deterministic train/test split, holding out `test_count` samples."""
+    # Clamp the request to a sane range.
+    test_count = max(0, min(test_count, len(refs)))
+    # Seeded shuffle so the same samples always land in the test set.
+    rng = np.random.default_rng(seed)
+    order = rng.permutation(len(refs))
+    # The first `test_count` shuffled indices become the test set.
+    test_idx = set(order[:test_count].tolist())
+    # Partition all samples into train vs. test.
+    train, test = [], []
+    for i, r in enumerate(refs):
+        (test if i in test_idx else train).append(r)
+    return train, test

@@ -25,9 +25,11 @@ from torch.utils.data import DataLoader
 from .config import PipelineConfig
 from .dataset import (
     XicsXarrayDataset,
+    SampleRef,
     build_image_from_sample,
     discover_samples,
     split_samples,
+    split_train_test,
 )
 from .labels import TiLabelSchema, build_ti_schema, decode_targets
 from .model import XicsCNN
@@ -37,8 +39,9 @@ from .model import XicsCNN
 # Data loaders
 # ---------------------------------------------------------------------------
 # Wrap the samples in train/val DataLoaders that feed batches to the model.
+# `refs` here are the TRAINING samples only (the test set is held out earlier).
 def make_loaders(cfg: PipelineConfig, label_schema: TiLabelSchema, refs):
-    # Split samples into training and validation lists.
+    # Carve a validation set out of the training samples for monitoring.
     train_refs, val_refs = split_samples(refs, cfg.data.val_fraction, cfg.data.seed)
     # Build a Dataset for each split (val only if there are val samples).
     train_ds = XicsXarrayDataset(train_refs, label_schema, cfg.data)
@@ -102,6 +105,14 @@ def train(cfg: PipelineConfig | None = None) -> Path:
     # Print the schema summary so you can see the target layout.
     print(label_schema.describe())
 
+    # Hold out the final TEST set first (e.g. 10 of 100 samples). The model
+    # never sees these during training; they are for final evaluation only.
+    train_refs, test_refs = split_train_test(
+        refs, cfg.data.test_count, cfg.data.seed
+    )
+    print(f"Total samples: {len(refs)} -> train {len(train_refs)}, "
+          f"held-out test {len(test_refs)}")
+
     # Choose the device: honor the request, but fall back to cpu if cuda is
     # asked for but unavailable.
     device = torch.device(
@@ -110,8 +121,8 @@ def train(cfg: PipelineConfig | None = None) -> Path:
         else "cpu"
     )
 
-    # Build the data loaders and report split sizes.
-    train_loader, val_loader, n_train, n_val = make_loaders(cfg, label_schema, refs)
+    # Build the data loaders from the TRAINING samples (val carved from them).
+    train_loader, val_loader, n_train, n_val = make_loaders(cfg, label_schema, train_refs)
     print(f"Training samples: {n_train}, validation samples: {n_val}")
 
     # Create the model with the right number of outputs, on the chosen device.
@@ -190,6 +201,10 @@ def train(cfg: PipelineConfig | None = None) -> Path:
                     "label_y_range": label_schema.y_range,
                     "epoch": epoch,
                     "val_loss": best_val,
+                    # Record which samples were held out for testing, so
+                    # evaluate_test() can reload exactly the same 10.
+                    "test_sample_indices": [r.sample_index for r in test_refs],
+                    "test_paths": [str(r.path) for r in test_refs],
                 },
                 best_path,
             )
@@ -260,9 +275,13 @@ def predict_sample(checkpoint_path, cfg: PipelineConfig | None = None,
     refs, ref_ds = discover_samples(cfg.data)
     ref = sample_ref or refs[0]
 
-    # Open the file this sample lives in.
+    # Open the file this sample lives in (use the configured backend engine).
     import xarray as xr
-    ds = xr.open_dataset(ref.path)
+    ds = (
+        xr.open_dataset(ref.path, engine=cfg.data.engine)
+        if cfg.data.engine
+        else xr.open_dataset(ref.path)
+    )
     schema = cfg.data.schema
 
     # Local helper: read a knot array for this sample as a flat float array.
@@ -286,7 +305,54 @@ def predict_sample(checkpoint_path, cfg: PipelineConfig | None = None,
     return pred, truth
 
 
-# Only run training when this file is executed directly (python -m cnn.train),
-# not when it is imported.
+# Evaluate a trained model on the held-out TEST set saved in the checkpoint.
+@torch.no_grad()
+def evaluate_test(checkpoint_path, cfg: PipelineConfig | None = None):
+    """Run the trained model on the 10 held-out test samples.
+
+    Reloads exactly the samples that were held out during training (their
+    indices are stored in the checkpoint). Returns a list of per-sample dicts
+    with predicted vs. true knots and the mean-squared knot error, and prints
+    a short summary.
+    """
+    # Use provided config, or defaults.
+    cfg = cfg or PipelineConfig()
+    # Load the trained model + label schema.
+    model, label_schema = load_model(checkpoint_path, cfg)
+    # Load the checkpoint again to read the stored test-sample indices.
+    ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    test_indices = ckpt.get("test_sample_indices", [])
+    test_paths = ckpt.get("test_paths", [])
+
+    # Rebuild SampleRef objects for the held-out test samples.
+    refs = [SampleRef(Path(p), i) for p, i in zip(test_paths, test_indices)]
+    if not refs:
+        print("No test samples recorded in the checkpoint.")
+        return []
+
+    # Evaluate each test sample and collect the results.
+    results = []
+    for ref in refs:
+        pred, truth = predict_sample(checkpoint_path, cfg, sample_ref=ref)
+        # Mean-squared error between predicted and true knots (physical units).
+        mse = float(
+            np.mean(
+                (pred["x_knots"] - truth["x_knots"]) ** 2
+                + (pred["y_knots"] - truth["y_knots"]) ** 2
+            )
+        )
+        results.append({"sample": ref.sample_index, "pred": pred,
+                        "truth": truth, "mse": mse})
+
+    # Print a compact summary.
+    mean_mse = float(np.mean([r["mse"] for r in results]))
+    print(f"Held-out test set: {len(results)} samples, mean knot MSE {mean_mse:.4f}")
+    for r in results:
+        print(f"  sample {r['sample']}: knot MSE {r['mse']:.4f}")
+    return results
+
+
+# Only run training when this file is executed directly
+# (python -m xicsrt_cnn.train), not when it is imported.
 if __name__ == "__main__":
     train()

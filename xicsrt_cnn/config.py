@@ -16,20 +16,23 @@ from .schema import XarraySchema
 # --- work out repo-relative default paths ----------------------------------
 # Absolute path to THIS file (config.py).
 _THIS = Path(__file__).resolve()
-# Go up two folders: cnn/ -> xics_ml_pipeline/ (the pipeline root).
+# Go up two folders: xicsrt_cnn/ -> xics_ml_pipeline/ (the pipeline root).
 _PIPELINE_ROOT = _THIS.parent.parent  # xics_ml_pipeline/
-# Default place to look for training data.
-_DATA_ROOT = _PIPELINE_ROOT / "nn_training_data"
+# The delivered training set lives directly in the pipeline root.
+_DATA_ROOT = _PIPELINE_ROOT
 
 
 # Everything about WHERE the data is and HOW to turn it into model inputs.
 @dataclass
 class DataConfig:
     # Path to an xarray file (.nc) OR a directory of per-sample .nc files.
-    # Point this at the mentor's delivered dataset.
-    xarray_path: Path = _DATA_ROOT / "training.nc"
+    # Points at the delivered training set (100 samples).
+    xarray_path: Path = _DATA_ROOT / "xicsrt_training_set_v00.nc"
     # If xarray_path is a directory, this glob picks the per-sample files.
     file_glob: str = "*.nc"
+    # xarray backend used to read the .nc file. The delivered file is NetCDF4/
+    # HDF5, which needs "h5netcdf" (or "netcdf4"). None = let xarray guess.
+    engine: str | None = "h5netcdf"
     # The variable/coordinate names inside the xarray (edit schema.py, not here).
     # `field(default_factory=...)` gives each DataConfig its own fresh schema
     # object instead of sharing one mutable instance across all configs.
@@ -39,9 +42,14 @@ class DataConfig:
     # Resize every image to this (rows, cols) before the CNN. None = keep the
     # native binned size.
     resize_to: tuple[int, int] | None = (512, 128)
-    # Fraction of samples held out for validation.
-    val_fraction: float = 0.15
-    # Random seed so the train/val split is reproducible.
+    # Number of samples held out entirely as the FINAL TEST set. With 100
+    # samples, test_count=10 leaves 90 for training (per the project plan).
+    test_count: int = 10
+    # Fraction of the *training* samples used for validation during training
+    # (monitoring only; not the held-out test set). Set to 0.0 to disable.
+    # With 90 training samples, 0.11 gives 10 validation / 80 train.
+    val_fraction: float = 0.11
+    # Random seed so the train/val/test split is reproducible.
     seed: int = 0
 
 
@@ -79,7 +87,7 @@ class TrainConfig:
     # Print a progress line every this many epochs.
     log_every: int = 10
     # Where to save model checkpoints.
-    ckpt_dir: Path = _PIPELINE_ROOT / "cnn" / "checkpoints"
+    ckpt_dir: Path = _PIPELINE_ROOT / "xicsrt_cnn" / "checkpoints"
 
 
 # Top-level bundle that holds all three config groups together.

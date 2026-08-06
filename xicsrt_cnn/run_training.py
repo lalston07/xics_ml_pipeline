@@ -67,7 +67,7 @@ def main() -> None:
     cfg.train.batch_size = 16       # samples per gradient step
     cfg.train.lr = 1e-3             # learning rate
     cfg.train.log_every = 5         # print progress every N epochs
-    cfg.train.device = "cpu"        # "cuda" if you have a GPU
+    cfg.train.device = "cuda"       # use the GPU (falls back to CPU if none)
 
     # ----------------------------------------------------------------------
     # RUN

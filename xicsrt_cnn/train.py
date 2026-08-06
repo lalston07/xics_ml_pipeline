@@ -139,6 +139,10 @@ def train(cfg: PipelineConfig | None = None) -> Path:
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     # Track the best (lowest) loss seen so far; start at infinity.
     best_val = float("inf")
+    # Which epoch produced that best loss (for reporting).
+    best_epoch = 0
+    # Early-stopping counter: how many epochs in a row without improvement.
+    epochs_without_improve = 0
     # Where the best model will be written (name is configurable so different
     # datasets/versions can each keep their own checkpoint).
     best_path = ckpt_dir / cfg.train.ckpt_name
@@ -186,9 +190,12 @@ def train(cfg: PipelineConfig | None = None) -> Path:
 
         # Decide what to track for "best": val loss if available, else train.
         current = val_loss if val_loader is not None else train_loss
-        # If this is the best so far, save a checkpoint.
-        if current < best_val:
+        # An "improvement" means the loss dropped by more than min_delta.
+        if current < best_val - cfg.train.min_delta:
             best_val = current
+            best_epoch = epoch
+            # Improvement -> reset the early-stopping counter.
+            epochs_without_improve = 0
             # Save the weights PLUS everything needed to rebuild the model and
             # decode predictions later (schema masks, ranges, output size).
             torch.save(
@@ -209,9 +216,25 @@ def train(cfg: PipelineConfig | None = None) -> Path:
                 },
                 best_path,
             )
+        else:
+            # No improvement this epoch -> count toward the patience limit.
+            epochs_without_improve += 1
+
+        # Early stopping: if val loss hasn't improved for `patience` epochs in a
+        # row, stop -- further training just overfits. Needs a validation set.
+        if (
+            cfg.train.use_early_stopping
+            and val_loader is not None
+            and epochs_without_improve >= cfg.train.patience
+        ):
+            print(
+                f"Early stopping at epoch {epoch}: no improvement for "
+                f"{cfg.train.patience} epochs (best was epoch {best_epoch})."
+            )
+            break
 
     # Report and return where the best model was saved.
-    print(f"Best loss {best_val:.6f} -> {best_path}")
+    print(f"Best loss {best_val:.6f} at epoch {best_epoch} -> {best_path}")
     return best_path
 
 

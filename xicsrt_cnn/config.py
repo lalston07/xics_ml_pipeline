@@ -86,6 +86,15 @@ class TrainConfig:
     device: str = "cpu"
     # Print a progress line every this many epochs.
     log_every: int = 10
+    # --- early stopping ---
+    # Stop training when the validation loss stops improving, so we don't waste
+    # epochs overfitting past the best model. `epochs` above is then just a cap.
+    use_early_stopping: bool = True
+    # How many epochs with no validation improvement to tolerate before stopping.
+    patience: int = 10
+    # Minimum drop in validation loss that counts as an "improvement" (guards
+    # against stopping/continuing on tiny noise).
+    min_delta: float = 0.0
     # Where to save model checkpoints.
     ckpt_dir: Path = _PIPELINE_ROOT / "xicsrt_cnn" / "checkpoints"
     # Filename for the best-model checkpoint. Give each dataset a distinct name

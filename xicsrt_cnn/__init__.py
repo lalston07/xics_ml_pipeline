@@ -42,6 +42,8 @@ from .train import (
     predict_sample,
     evaluate_test,
 )
+# Rich evaluation report (comparable metrics for before/after comparisons).
+from .evaluate_report import evaluate_report
 
 # `__all__` lists the public API: the names exported by `from cnn import *`
 # and what tools treat as this package's official surface.
@@ -72,4 +74,5 @@ __all__ = [
     "predict_image",
     "predict_sample",
     "evaluate_test",
+    "evaluate_report",
 ]

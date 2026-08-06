@@ -1,11 +1,15 @@
 """
 Ready-to-run training script for the XICS ion-temperature CNN.
 
-What it does:
-  1. Trains the CNN on 90 of the 100 samples in xicsrt_training_set_v00.nc.
-  2. Holds out 10 samples as a final test set (never seen during training).
-  3. Saves the best model to xicsrt_cnn/checkpoints/best.pt.
-  4. Evaluates that best model on the held-out 10 test cases.
+What it does (current settings = 1000-case dataset):
+  1. Trains the CNN on 800 of the 1000 samples in xicsrt_training_set_v01.nc.
+  2. Holds out 100 samples as a final test set (never seen during training).
+  3. Uses 100 samples for validation during training.
+  4. Saves the best model to xicsrt_cnn/checkpoints/best.pt.
+  5. Evaluates that best model on the held-out 100 test cases.
+
+The older 100-case (v00) settings are kept below but commented out, so you can
+still see / revert to them.
 
 How to run (from the xics_ml_pipeline directory):
     python -m xicsrt_cnn.run_training
@@ -25,17 +29,34 @@ def main() -> None:
     # ----------------------------------------------------------------------
     cfg = PipelineConfig()
 
+    # ======================================================================
+    # CURRENT: 1000-case dataset (xicsrt_training_set_v01.nc)
+    #   split -> 800 train / 100 validation / 100 test
+    # ======================================================================
     # --- data / split ---
-    # 10 of 100 samples are held out for the final test (leaves 90 to train on).
-    cfg.data.test_count = 10
-    # Fraction of the 90 training samples used for validation during training
-    # (monitoring only). 0.11 gives 10 validation / 80 train. Set 0.0 to use
-    # all 90 for training with no validation.
-    cfg.data.val_fraction = 0.11
+    # Point at the 1000-case file (sits next to the v00 file in the repo root).
+    cfg.data.xarray_path = cfg.data.xarray_path.parent / "xicsrt_training_set_v01.nc"
+    # Hold out 100 of 1000 samples for the final test (leaves 900).
+    cfg.data.test_count = 100
+    # Fraction of the remaining 900 used for validation. 100/900 gives exactly
+    # 100 validation / 800 train.
+    cfg.data.val_fraction = 100 / 900
     # Detector image size (rows, cols) fed to the CNN. Smaller = faster.
     cfg.data.resize_to = (512, 128)
-    # Seed controls which 10 samples are held out (kept fixed for reproducibility).
+    # Seed controls which samples are held out (kept fixed for reproducibility).
     cfg.data.seed = 0
+
+    # ======================================================================
+    # OLD: 100-case dataset (xicsrt_training_set_v00.nc)
+    #   split -> 80 train / 10 validation / 10 test
+    # Kept for reference; uncomment this block (and comment the one above) to
+    # reproduce the original 100-case run.
+    # ======================================================================
+    # cfg.data.xarray_path = cfg.data.xarray_path.parent / "xicsrt_training_set_v00.nc"
+    # cfg.data.test_count = 10
+    # cfg.data.val_fraction = 0.11   # 10 validation / 80 train
+    # cfg.data.resize_to = (512, 128)
+    # cfg.data.seed = 0
 
     # --- training ---
     cfg.train.epochs = 100          # number of passes over the data

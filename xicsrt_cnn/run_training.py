@@ -45,6 +45,9 @@ def main() -> None:
     cfg.data.resize_to = (512, 128)
     # Seed controls which samples are held out (kept fixed for reproducibility).
     cfg.data.seed = 0
+    # Save this model under a version-specific name so it does NOT overwrite the
+    # 100-case (v00) model. Both survive in xicsrt_cnn/checkpoints/.
+    cfg.train.ckpt_name = "best_v01.pt"
 
     # ======================================================================
     # OLD: 100-case dataset (xicsrt_training_set_v00.nc)
@@ -57,6 +60,7 @@ def main() -> None:
     # cfg.data.val_fraction = 0.11   # 10 validation / 80 train
     # cfg.data.resize_to = (512, 128)
     # cfg.data.seed = 0
+    # cfg.train.ckpt_name = "best_v00.pt"
 
     # --- training ---
     cfg.train.epochs = 100          # number of passes over the data

@@ -139,8 +139,9 @@ def train(cfg: PipelineConfig | None = None) -> Path:
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     # Track the best (lowest) loss seen so far; start at infinity.
     best_val = float("inf")
-    # Where the best model will be written.
-    best_path = ckpt_dir / "best.pt"
+    # Where the best model will be written (name is configurable so different
+    # datasets/versions can each keep their own checkpoint).
+    best_path = ckpt_dir / cfg.train.ckpt_name
 
     # Main epoch loop.
     for epoch in range(1, cfg.train.epochs + 1):

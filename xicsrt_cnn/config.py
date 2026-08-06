@@ -88,6 +88,10 @@ class TrainConfig:
     log_every: int = 10
     # Where to save model checkpoints.
     ckpt_dir: Path = _PIPELINE_ROOT / "xicsrt_cnn" / "checkpoints"
+    # Filename for the best-model checkpoint. Give each dataset a distinct name
+    # (e.g. "best_v00.pt", "best_v01.pt") so models from different runs survive
+    # instead of overwriting each other.
+    ckpt_name: str = "best.pt"
 
 
 # Top-level bundle that holds all three config groups together.

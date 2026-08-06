@@ -1,16 +1,18 @@
 """
 Inspect a single test case: predicted vs. true ion-temperature knots.
 
-Loads a trained checkpoint, runs the model on one sample from
-xicsrt_training_set_v00.nc, and prints the predicted knot locations next to the
-ground-truth knot locations.
+Loads a trained checkpoint, runs the model on one sample, and prints the
+predicted knot locations next to the ground-truth knot locations.
 
 How to run (from the xics_ml_pipeline directory):
-    # inspect the first held-out test case:
+    # first held-out test case of the default checkpoint:
     python -m xicsrt_cnn.inspect_case
 
-    # inspect a specific sample index (e.g. 16):
+    # a specific sample index (e.g. 16):
     python -m xicsrt_cnn.inspect_case 16
+
+    # choose which model to use (version-specific checkpoints):
+    python -m xicsrt_cnn.inspect_case 16 --checkpoint xicsrt_cnn/checkpoints/best_v01.pt
 
 `pred` and `truth` are full knot arrays (fixed knots filled in), ready to feed
 into a PCHIP / CubicHermiteSpline to rebuild and plot the profile.
@@ -18,7 +20,8 @@ into a PCHIP / CubicHermiteSpline to rebuild and plot the profile.
 
 from __future__ import annotations
 
-import sys
+import argparse
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -26,8 +29,8 @@ import torch
 from xicsrt_cnn import PipelineConfig, discover_samples
 from xicsrt_cnn.train import predict_sample
 
-# Path to the trained model saved by run_training.py.
-CHECKPOINT = "xicsrt_cnn/checkpoints/best.pt"
+# Default checkpoint if none is given on the command line.
+DEFAULT_CHECKPOINT = "xicsrt_cnn/checkpoints/best.pt"
 
 
 def held_out_indices(checkpoint_path):
@@ -39,9 +42,26 @@ def held_out_indices(checkpoint_path):
     return ckpt.get("test_sample_indices", [])
 
 
-def inspect(sample_index: int | None = None, checkpoint_path: str = CHECKPOINT) -> None:
-    # Use the default configuration (same data file + split as training).
+def _config_for_checkpoint(checkpoint_path: str) -> PipelineConfig:
+    """Build a config whose data file matches the one this checkpoint used.
+
+    A v00 checkpoint's test samples come from the v00 .nc file, a v01's from the
+    v01 file. We read the data file the checkpoint recorded (via test_paths) so
+    discover_samples looks in the correct file regardless of the config default.
+    """
     cfg = PipelineConfig()
+    ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    paths = ckpt.get("test_paths", [])
+    if paths:
+        # All test samples share the same source file; use the first.
+        cfg.data.xarray_path = Path(paths[0])
+    return cfg
+
+
+def inspect(sample_index: int | None = None,
+            checkpoint_path: str = DEFAULT_CHECKPOINT) -> None:
+    # Use a config whose data file matches this checkpoint's training data.
+    cfg = _config_for_checkpoint(checkpoint_path)
 
     # Discover all samples so we can pick the one we want by its index.
     refs, _ = discover_samples(cfg.data)
@@ -65,6 +85,7 @@ def inspect(sample_index: int | None = None, checkpoint_path: str = CHECKPOINT) 
     # Warn (but continue) if this case was actually part of training.
     test_ids = held_out_indices(checkpoint_path)
     where = "HELD-OUT TEST" if sample_index in test_ids else "TRAINING"
+    print(f"Checkpoint: {checkpoint_path}")
     print(f"Inspecting sample {sample_index}  ({where} case)\n")
 
     # Run the model: returns predicted and true knots in physical units.
@@ -89,9 +110,20 @@ def inspect(sample_index: int | None = None, checkpoint_path: str = CHECKPOINT) 
 
 
 def main() -> None:
-    # Optional command-line argument: the sample index to inspect.
-    sample_index = int(sys.argv[1]) if len(sys.argv) > 1 else None
-    inspect(sample_index)
+    parser = argparse.ArgumentParser(
+        description="Inspect predicted vs. true knots for one sample."
+    )
+    parser.add_argument(
+        "sample_index", nargs="?", type=int, default=None,
+        help="which sample to inspect (default: first held-out test case)",
+    )
+    parser.add_argument(
+        "--checkpoint", default=DEFAULT_CHECKPOINT,
+        help="path to the trained model checkpoint "
+             "(e.g. xicsrt_cnn/checkpoints/best_v01.pt)",
+    )
+    args = parser.parse_args()
+    inspect(args.sample_index, args.checkpoint)
 
 
 # Only run when executed directly, not when imported.

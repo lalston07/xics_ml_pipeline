@@ -47,7 +47,7 @@ def main() -> None:
     cfg.data.seed = 0
     # Save this model under a version-specific name so it does NOT overwrite the
     # 100-case (v00) model. Both survive in xicsrt_cnn/checkpoints/.
-    cfg.train.ckpt_name = "best_v01.pt"
+    cfg.train.ckpt_name = "best_v02.pt"
 
     # ======================================================================
     # OLD: 100-case dataset (xicsrt_training_set_v00.nc)
@@ -64,10 +64,13 @@ def main() -> None:
 
     # --- training ---
     cfg.train.epochs = 100          # number of passes over the data
-    cfg.train.batch_size = 16       # samples per gradient step
+    cfg.train.batch_size = 8        # samples per gradient step (lowered for 4GB GPU)
     cfg.train.lr = 1e-3             # learning rate
     cfg.train.log_every = 5         # print progress every N epochs
     cfg.train.device = "cuda"       # use the GPU (falls back to CPU if none)
+    # Early stopping OFF for now: train the full `epochs` regardless of whether
+    # validation loss stops improving. (The best model is still saved.)
+    cfg.train.use_early_stopping = False
 
     # ----------------------------------------------------------------------
     # RUN

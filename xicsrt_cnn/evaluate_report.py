@@ -112,11 +112,16 @@ def evaluate_report(
             "profile_rmse_eV": prof_rmse,
         })
 
+    # The data file the checkpoint actually used (from its saved test paths),
+    # not the config default -- these can differ (e.g. a v01 checkpoint whose
+    # test samples live in the 1000-case file even if the config points at v00).
+    data_file = str(refs[0].path)
+
     # Aggregate metrics across the whole test set.
     report = {
         "tag": tag or Path(checkpoint_path).stem,
         "checkpoint": str(checkpoint_path),
-        "data_file": str(cfg.data.xarray_path),
+        "data_file": data_file,
         "n_test_samples": len(refs),
         "test_sample_indices": [int(i) for i in test_indices],
         "aggregate": {
